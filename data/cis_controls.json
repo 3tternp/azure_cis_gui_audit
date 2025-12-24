@@ -1,1 +1,128 @@
-
+[
+  {
+    "issue_id": "AZ-CIS-001",
+    "cis_ref": "Azure Foundations \u2013 Identity/Access (tenant)",
+    "issue_name": "No enabled Conditional Access policies found",
+    "remediation": "Define and enable Conditional Access policies (at minimum: require MFA for privileged roles; block legacy authentication; enforce compliant device or trusted locations where appropriate).",
+    "fix_type": "PLANNED"
+  },
+  {
+    "issue_id": "AZ-CIS-002",
+    "cis_ref": "Azure Foundations \u2013 Identity/Access (tenant)",
+    "issue_name": "No Conditional Access policy blocking legacy authentication detected",
+    "remediation": "Create a Conditional Access policy that blocks legacy authentication protocols and applies to all users or targeted groups, excluding break-glass accounts as per policy.",
+    "fix_type": "PLANNED"
+  },
+  {
+    "issue_id": "AZ-CIS-010",
+    "cis_ref": "Azure Foundations \u2013 Logging & Monitoring",
+    "issue_name": "Subscription diagnostic settings not configured for Activity Logs",
+    "remediation": "Enable subscription-level diagnostic settings to send Activity Logs to a Log Analytics workspace / Event Hub / Storage account for centralized monitoring and retention.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-011",
+    "cis_ref": "Azure Foundations \u2013 Logging & Monitoring",
+    "issue_name": "Log Analytics workspace retention below recommended minimum",
+    "remediation": "Increase Log Analytics workspace retention to meet organizational and regulatory requirements (commonly 90 days+; longer for investigations/compliance).",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-020",
+    "cis_ref": "Azure Foundations \u2013 Security Services",
+    "issue_name": "Defender for Cloud (Microsoft Defender plans) not set to Standard",
+    "remediation": "Enable Microsoft Defender for Cloud plans (Standard) for relevant resource types and ensure alerts are routed to the SOC/SIEM.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-021",
+    "cis_ref": "Azure Foundations \u2013 Security Services",
+    "issue_name": "Security contact not configured in Defender for Cloud",
+    "remediation": "Configure security contact email/phone and alert notifications within Defender for Cloud to ensure timely response.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-030",
+    "cis_ref": "Azure Storage Services",
+    "issue_name": "Storage account allows public blob access",
+    "remediation": "Disable public access at the storage account level and use SAS or private endpoints for controlled access.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-031",
+    "cis_ref": "Azure Storage Services",
+    "issue_name": "Storage account does not enforce secure transfer (HTTPS)",
+    "remediation": "Enable 'Secure transfer required' and ensure clients use HTTPS endpoints only.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-032",
+    "cis_ref": "Azure Storage Services",
+    "issue_name": "Storage account minimum TLS version below 1.2",
+    "remediation": "Set minimum TLS version to 1.2 or higher for all storage accounts.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-040",
+    "cis_ref": "Azure Key Vault",
+    "issue_name": "Key Vault soft delete not enabled",
+    "remediation": "Enable soft delete on Key Vaults to protect against accidental or malicious deletion and support recovery operations.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-041",
+    "cis_ref": "Azure Key Vault",
+    "issue_name": "Key Vault purge protection not enabled",
+    "remediation": "Enable purge protection to prevent permanent deletion during the retention period and protect against ransomware/insider threats.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-050",
+    "cis_ref": "Azure Networking",
+    "issue_name": "NSG allows inbound RDP (3389) from Internet",
+    "remediation": "Restrict RDP to trusted IP ranges, implement JIT VM access, or remove inbound RDP exposure entirely. Prefer Bastion/Privileged Access Workstations.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-051",
+    "cis_ref": "Azure Networking",
+    "issue_name": "NSG allows inbound SSH (22) from Internet",
+    "remediation": "Restrict SSH to trusted IP ranges, use Bastion, and enforce key-based auth. Remove direct Internet exposure where feasible.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-060",
+    "cis_ref": "Azure App Service",
+    "issue_name": "App Service does not enforce HTTPS only",
+    "remediation": "Set 'HTTPS Only' to On for all web apps and ensure TLS is configured appropriately.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-061",
+    "cis_ref": "Azure App Service",
+    "issue_name": "App Service minimum TLS version below 1.2",
+    "remediation": "Set App Service minimum TLS version to 1.2 or higher, and disable legacy ciphers at the edge where possible.",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-062",
+    "cis_ref": "Azure App Service",
+    "issue_name": "App Service does not enforce FTPS only",
+    "remediation": "Disable unencrypted FTP and enforce FTPS only (or disable FTP entirely if not required).",
+    "fix_type": "QUICK"
+  },
+  {
+    "issue_id": "AZ-CIS-070",
+    "cis_ref": "Azure SQL",
+    "issue_name": "SQL Server auditing not enabled",
+    "remediation": "Enable SQL auditing to Log Analytics/Storage/Event Hub and ensure alerting/retention meets requirements.",
+    "fix_type": "INVOLVED"
+  },
+  {
+    "issue_id": "AZ-CIS-071",
+    "cis_ref": "Azure SQL",
+    "issue_name": "SQL Server public network access enabled",
+    "remediation": "Disable public network access, use private endpoints, and restrict firewall rules to least privilege.",
+    "fix_type": "INVOLVED"
+  }
+]

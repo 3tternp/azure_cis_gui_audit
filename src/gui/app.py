@@ -61,7 +61,7 @@ class App(ttk.Frame):
 
         ttk.Separator(frm).grid(row=4, column=0, columnspan=3, sticky="ew", pady=12)
 
-        ttk.Label(frm, text="Tip: If you only have Tenant ID, use 'Load Subscriptions' on the Scope tab to discover subscription IDs.").grid(row=5, column=0, columnspan=3, sticky="w")
+        ttk.Label(frm, text="Tip: DefaultAzureCredential needs no secret - run 'az login' first (Tenant/Client/Secret are ignored). Then use 'Load Subscriptions' on the Scope tab.").grid(row=5, column=0, columnspan=3, sticky="w")
 
         # --- Scope tab
         frm2 = ttk.Frame(self.tab_scope, padding=12)

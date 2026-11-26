@@ -3,6 +3,22 @@ from typing import Optional, Dict, Any
 
 from azure.identity import ClientSecretCredential, DefaultAzureCredential
 
+class _TenantScopedCredential:
+    """Wraps a credential so every token request targets a chosen tenant (e.g. the Azure CLI's non-default tenant)."""
+    def __init__(self, inner, tenant_id: str):
+        self._inner = inner
+        self._tenant_id = tenant_id
+
+    def get_token(self, *scopes, **kwargs):
+        if self._tenant_id and not kwargs.get("tenant_id"):
+            kwargs["tenant_id"] = self._tenant_id
+        return self._inner.get_token(*scopes, **kwargs)
+
+    def close(self):
+        close = getattr(self._inner, "close", None)
+        if close:
+            close()
+
 def build_credential(auth_mode: str, tenant_id: str, client_id: str, client_secret: str):
     """Create an Azure credential.
 
@@ -11,7 +27,8 @@ def build_credential(auth_mode: str, tenant_id: str, client_id: str, client_secr
       - 'default' (DefaultAzureCredential; supports Azure CLI, managed identity, etc.)
     """
     if auth_mode == "default":
-        return DefaultAzureCredential(exclude_interactive_browser_credential=True)
+        cred = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+        return _TenantScopedCredential(cred, tenant_id) if tenant_id else cred
     return ClientSecretCredential(tenant_id=tenant_id, client_id=client_id, client_secret=client_secret)
 
 def token_for_scope(credential, scope: str) -> str:
@@ -37,7 +54,7 @@ def _short_error(e: Exception) -> str:
         return "No signed-in identity found (Azure CLI, managed identity or environment credentials)."
     return (msg[:300] + "...") if len(msg) > 300 else (msg or type(e).__name__)
 
-def test_connection(auth_mode: str, tenant_id: str, client_id: str, client_secret: str) -> Dict[str, Any]:
+def test_connection(auth_mode: str, tenant_id: str, client_id: str, client_secret: str, subscription_ids=None) -> Dict[str, Any]:
     """Check that the credential can get Azure (ARM) and Graph tokens and list subscriptions.
 
     Returns a dict with: identity, tenant, arm_ok, graph_ok, subscriptions (count or None),
@@ -45,7 +62,7 @@ def test_connection(auth_mode: str, tenant_id: str, client_id: str, client_secre
     """
     from azure.mgmt.resource import SubscriptionClient
     result: Dict[str, Any] = {"identity": "", "tenant": "", "arm_ok": False, "graph_ok": False,
-                              "subscriptions": None, "errors": {}}
+                              "subscriptions": None, "checked_subscriptions": {}, "errors": {}}
     try:
         cred = build_credential(auth_mode, tenant_id, client_id, client_secret)
     except Exception as e:
@@ -73,4 +90,12 @@ def test_connection(auth_mode: str, tenant_id: str, client_id: str, client_secre
             result["subscriptions"] = len(list(SubscriptionClient(cred).subscriptions.list()))
         except Exception as e:
             result["errors"]["subscriptions"] = _short_error(e)
+    if result["arm_ok"] and subscription_ids:
+        sc = SubscriptionClient(cred)
+        for sid in subscription_ids:
+            try:
+                sub = sc.subscriptions.get(sid)
+                result["checked_subscriptions"][sid] = f"{sub.display_name} ({sub.state})"
+            except Exception as e:
+                result["checked_subscriptions"][sid] = "ERROR: " + _short_error(e)
     return result

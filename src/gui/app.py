@@ -91,24 +91,35 @@ class App(ttk.Frame):
         ttk.Radiobutton(modes, text="Service principal  (Tenant ID / Client ID / Client Secret)", variable=self.auth_mode,
                         value="service_principal", command=self._on_mode_change).pack(anchor="w")
 
-        box = ttk.LabelFrame(f, text="Service principal details", padding=12)
-        box.pack(fill="x", pady=14)
+        target = ttk.LabelFrame(f, text="Target (both modes)", padding=12)
+        target.pack(fill="x", pady=(14, 8))
         self.tenant_id = tk.StringVar()
         self.client_id = tk.StringVar()
         self.client_secret = tk.StringVar()
+        self.sub_ids_text = tk.StringVar()
+        ttk.Label(target, text="Tenant ID", width=16).grid(row=0, column=0, sticky="w", pady=4)
+        ttk.Entry(target, textvariable=self.tenant_id, width=60).grid(row=0, column=1, sticky="w", pady=4)
+        ttk.Label(target, text="(optional in Azure CLI mode)", style="Hint.TLabel").grid(row=0, column=2, sticky="w", padx=8)
+        ttk.Label(target, text="Subscription ID(s)", width=16).grid(row=1, column=0, sticky="w", pady=4)
+        ttk.Entry(target, textvariable=self.sub_ids_text, width=60).grid(row=1, column=1, sticky="w", pady=4)
+        ttk.Label(target, text="(optional, comma-separated)", style="Hint.TLabel").grid(row=1, column=2, sticky="w", padx=8)
+        ttk.Label(target, text="Leave Subscription ID(s) empty to pick from the list on the Scope tab instead.",
+                  style="Hint.TLabel").grid(row=2, column=1, sticky="w")
+
+        box = ttk.LabelFrame(f, text="Service principal credentials (only for service principal sign-in)", padding=12)
+        box.pack(fill="x", pady=(0, 10))
         self.sp_entries = []
-        for i, (label, var, secret) in enumerate((("Tenant ID", self.tenant_id, False),
-                                                  ("Client ID", self.client_id, False),
+        for i, (label, var, secret) in enumerate((("Client ID", self.client_id, False),
                                                   ("Client Secret", self.client_secret, True))):
-            ttk.Label(box, text=label, width=14).grid(row=i, column=0, sticky="w", pady=4)
-            e = ttk.Entry(box, textvariable=var, width=60, show="•" if secret else "")
+            ttk.Label(box, text=label, width=16).grid(row=i, column=0, sticky="w", pady=4)
+            e = ttk.Entry(box, textvariable=var, width=60, show="\u2022" if secret else "")
             e.grid(row=i, column=1, sticky="w", pady=4)
             self.sp_entries.append(e)
             if secret:
                 self.secret_entry = e
         self.show_secret = tk.BooleanVar(value=False)
         self.show_chk = ttk.Checkbutton(box, text="Show secret", variable=self.show_secret, command=self._toggle_secret)
-        self.show_chk.grid(row=2, column=2, padx=10)
+        self.show_chk.grid(row=1, column=2, padx=10)
         self.sp_entries.append(self.show_chk)
 
         ttk.Label(f, text="Required permissions: Reader + Security Reader on each subscription; Microsoft Graph "
@@ -122,7 +133,7 @@ class App(ttk.Frame):
         self.test_result.tag_configure("bad", foreground=COLORS["FAIL"])
         self.test_result.tag_configure("warn", foreground=COLORS["UNKNOWN"])
         self.test_result.pack(fill="x", pady=8)
-        ttk.Button(f, text="Next: choose subscriptions  →", command=lambda: self.nb.select(self.tab_scope)).pack(anchor="e", pady=(12, 0))
+        ttk.Button(f, text="Next: choose subscriptions  →", command=self._go_scope).pack(anchor="e", pady=(12, 0))
 
     def _build_scope(self):
         f = self.tab_scope
@@ -227,6 +238,10 @@ class App(ttk.Frame):
         ttk.Button(btns, text="Open PDF", command=self.open_pdf).pack(side="left", padx=6)
 
     # ------------------------------------------------------------ helpers
+    def _go_scope(self):
+        self._sync_typed_subscriptions()
+        self.nb.select(self.tab_scope)
+
     def _on_mode_change(self):
         state = "normal" if self.auth_mode.get() == "service_principal" else "disabled"
         for w in self.sp_entries:
@@ -255,6 +270,27 @@ class App(ttk.Frame):
                 self.nb.select(self.tab_auth)
                 return False
         return True
+
+    def _typed_subscription_ids(self) -> List[str]:
+        raw = self.sub_ids_text.get().replace(";", ",").replace(" ", ",")
+        seen, ids = set(), []
+        for part in raw.split(","):
+            part = part.strip().lower()
+            if part and part not in seen:
+                seen.add(part)
+                ids.append(part)
+        return ids
+
+    def _sync_typed_subscriptions(self):
+        """Show subscription IDs typed on the Authentication tab in the Scope table and select them."""
+        typed = self._typed_subscription_ids()
+        if not typed:
+            return
+        existing = {self.subs_tree.item(i, "values")[1].lower(): i for i in self.subs_tree.get_children()}
+        for sid in typed:
+            if sid not in existing:
+                existing[sid] = self.subs_tree.insert("", tk.END, values=("(entered manually)", sid))
+        self.subs_tree.selection_set([existing[sid] for sid in typed])
 
     def browse_out(self):
         p = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")])
@@ -305,10 +341,11 @@ class App(ttk.Frame):
         self._write_test_result([("Testing...", "warn")])
         mode, tenant = self.auth_mode.get(), self.tenant_id.get().strip()
         client, secret = self.client_id.get().strip(), self.client_secret.get().strip()
+        typed_subs = self._typed_subscription_ids()
 
         def worker():
             from ..azure.clients import test_connection
-            r = test_connection(mode, tenant, client, secret)
+            r = test_connection(mode, tenant, client, secret, typed_subs)
             lines = []
             if r["errors"].get("credential"):
                 lines.append(("\u2716 Could not create credential: " + r["errors"]["credential"], "bad"))
@@ -326,6 +363,9 @@ class App(ttk.Frame):
                     lines.append(("\u2714 Microsoft Graph token OK  (Conditional Access checks can run if the identity has Graph read access)", "ok"))
                 else:
                     lines.append(("? Microsoft Graph token failed: " + r["errors"].get("graph", "") + "  -  Entra checks will be UNKNOWN", "warn"))
+                for sid, info in (r.get("checked_subscriptions") or {}).items():
+                    ok_sub = not info.startswith("ERROR")
+                    lines.append((("\u2714 " if ok_sub else "\u2716 ") + f"Subscription {sid}: {info.replace('ERROR: ', '')}", "ok" if ok_sub else "bad"))
                 if r["subscriptions"] is not None:
                     lines.append((f"\u2714 {r['subscriptions']} subscription(s) visible", "ok" if r["subscriptions"] else "warn"))
                 elif r["arm_ok"]:
@@ -338,9 +378,11 @@ class App(ttk.Frame):
     def run_audit_clicked(self):
         if self._busy or not self._validate():
             return
+        if self._typed_subscription_ids() and not self.subs_tree.selection():
+            self._sync_typed_subscriptions()
         sub_ids = self._selected_subscription_ids()
         if self.run_subs.get() and not sub_ids:
-            messagebox.showerror("No subscriptions selected", "Select at least one subscription on the Scope tab (or untick Subscription checks).")
+            messagebox.showerror("No subscriptions selected", "Enter a Subscription ID on the Authentication tab or select one on the Scope tab (or untick Subscription checks).")
             self.nb.select(self.tab_scope)
             return
 

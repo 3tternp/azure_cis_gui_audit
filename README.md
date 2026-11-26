@@ -43,7 +43,7 @@ The code is structured so you can add checks for more CIS controls (`src/checks/
 | 🔑 **Service Principal** | Tenant ID, Client ID, Client Secret | Automation, or when you have an app registration |
 | 🙋 **DefaultAzureCredential** | Nothing in the form; log in first with `az login` (or run on a host with a managed identity) | Quick audits from your own machine, no secret to handle |
 
-In DefaultAzureCredential mode the Tenant ID, Client ID and Client Secret fields are ignored. The same identity is used for Azure Resource Manager and Microsoft Graph.
+In DefaultAzureCredential mode the Client ID and Client Secret are ignored. You can still enter a **Tenant ID** (to target a specific tenant) and one or more **Subscription IDs** (comma-separated) on the Authentication tab. The same identity is used for Azure Resource Manager and Microsoft Graph.
 
 ---
 

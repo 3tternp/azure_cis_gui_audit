@@ -51,7 +51,10 @@ def _jwt_claims(token: str) -> Dict[str, Any]:
 def _short_error(e: Exception) -> str:
     msg = " ".join(str(e).split())
     if "DefaultAzureCredential failed to retrieve a token" in msg:
-        return "No signed-in identity found (Azure CLI, managed identity or environment credentials)."
+        if "Azure CLI not found on path" in msg:
+            return ("Azure CLI ('az') was not found. Install it (winget install -e --id Microsoft.AzureCLI), "
+                    "open a NEW terminal, run 'az login', then start this app from that terminal.")
+        return "No signed-in identity found. Run 'az login' (Azure CLI), or use a managed identity / service principal."
     return (msg[:300] + "...") if len(msg) > 300 else (msg or type(e).__name__)
 
 def test_connection(auth_mode: str, tenant_id: str, client_id: str, client_secret: str, subscription_ids=None) -> Dict[str, Any]:

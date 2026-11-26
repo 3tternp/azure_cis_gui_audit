@@ -61,6 +61,17 @@ def run_audit(
     credential = build_credential(auth_mode, tenant_id, client_id, client_secret)
     findings = []
 
+    # Fail fast: if we cannot even get a token, stop with one clear message instead of
+    # running every check and reporting the same sign-in failure many times.
+    from .azure.clients import ARM_SCOPE, GRAPH_SCOPE, _short_error
+    for needed, scope, what in ((run_subscription_checks, ARM_SCOPE, "Azure Resource Manager"),
+                                (run_entra_checks, GRAPH_SCOPE, "Microsoft Graph")):
+        if needed:
+            try:
+                credential.get_token(scope)
+            except Exception as e:
+                raise RuntimeError(f"Cannot sign in to {what}: {_short_error(e)}") from None
+
     graph = None
     if run_entra_checks:
         if auth_mode == "service_principal":

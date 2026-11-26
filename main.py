@@ -6,6 +6,29 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+import logging
+import shutil
+
+# azure-identity logs a long multi-line warning for every failed token request; the app
+# reports sign-in problems itself in a short form, so keep the console quiet.
+logging.getLogger("azure.identity").setLevel(logging.CRITICAL)
+
+
+def _ensure_az_on_path():
+    """On Windows a terminal opened before installing the Azure CLI has a stale PATH.
+    If 'az' is not found, look in the standard install folders and add it for this process."""
+    if shutil.which("az") or os.name != "nt":
+        return
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+        if base:
+            wbin = os.path.join(base, "Microsoft SDKs", "Azure", "CLI2", "wbin")
+            if os.path.isfile(os.path.join(wbin, "az.cmd")):
+                os.environ["PATH"] = wbin + os.pathsep + os.environ.get("PATH", "")
+                return
+
+
+_ensure_az_on_path()
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REQUIREMENTS = os.path.join(HERE, "requirements.txt")
 # Set after one install attempt so a failed install can never cause a restart loop.

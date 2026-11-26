@@ -113,7 +113,16 @@ class App(ttk.Frame):
 
         ttk.Label(f, text="Required permissions: Reader + Security Reader on each subscription; Microsoft Graph "
                           "Policy.Read.All for the Conditional Access checks.", style="Hint.TLabel", wraplength=900).pack(anchor="w")
-        ttk.Button(f, text="Next: choose subscriptions  →", command=lambda: self.nb.select(self.tab_scope)).pack(anchor="e", pady=(20, 0))
+        test_row = ttk.Frame(f)
+        test_row.pack(fill="x", pady=(16, 0))
+        self.test_btn = ttk.Button(test_row, text="\u26A1  Test connection", command=self.test_connection_clicked)
+        self.test_btn.pack(side="left")
+        self.test_result = tk.Text(f, height=6, wrap="word", state="disabled", relief="flat", background="#F7F8FA")
+        self.test_result.tag_configure("ok", foreground=COLORS["PASS"])
+        self.test_result.tag_configure("bad", foreground=COLORS["FAIL"])
+        self.test_result.tag_configure("warn", foreground=COLORS["UNKNOWN"])
+        self.test_result.pack(fill="x", pady=8)
+        ttk.Button(f, text="Next: choose subscriptions  →", command=lambda: self.nb.select(self.tab_scope)).pack(anchor="e", pady=(12, 0))
 
     def _build_scope(self):
         f = self.tab_scope
@@ -237,6 +246,7 @@ class App(ttk.Frame):
         st = "disabled" if busy else "normal"
         self.run_btn.configure(state=st)
         self.load_btn.configure(state=st)
+        self.test_btn.configure(state=st)
 
     def _validate(self) -> bool:
         if self.auth_mode.get() == "service_principal":
@@ -279,6 +289,50 @@ class App(ttk.Frame):
                 err = str(e)
                 self.master.after(0, lambda: (self._set_busy(False, "Failed to load subscriptions."),
                                               messagebox.showerror("Could not load subscriptions", err)))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _write_test_result(self, lines):
+        self.test_result.configure(state="normal")
+        self.test_result.delete("1.0", tk.END)
+        for text, tag in lines:
+            self.test_result.insert(tk.END, text + "\n", tag)
+        self.test_result.configure(state="disabled")
+
+    def test_connection_clicked(self):
+        if self._busy or not self._validate():
+            return
+        self._set_busy(True, "Testing connection...")
+        self._write_test_result([("Testing...", "warn")])
+        mode, tenant = self.auth_mode.get(), self.tenant_id.get().strip()
+        client, secret = self.client_id.get().strip(), self.client_secret.get().strip()
+
+        def worker():
+            from ..azure.clients import test_connection
+            r = test_connection(mode, tenant, client, secret)
+            lines = []
+            if r["errors"].get("credential"):
+                lines.append(("\u2716 Could not create credential: " + r["errors"]["credential"], "bad"))
+            else:
+                if r["arm_ok"]:
+                    who = r["identity"] or "unknown identity"
+                    lines.append((f"\u2714 Azure Resource Manager token OK  -  signed in as {who}", "ok"))
+                    if r["tenant"]:
+                        lines.append((f"    Tenant: {r['tenant']}", "ok"))
+                else:
+                    lines.append(("\u2716 Azure Resource Manager token failed: " + r["errors"].get("arm", ""), "bad"))
+                    if mode == "default":
+                        lines.append(("    Run 'az login --tenant <tenant-id>' in a terminal, then try again.", "warn"))
+                if r["graph_ok"]:
+                    lines.append(("\u2714 Microsoft Graph token OK  (Conditional Access checks can run if the identity has Graph read access)", "ok"))
+                else:
+                    lines.append(("? Microsoft Graph token failed: " + r["errors"].get("graph", "") + "  -  Entra checks will be UNKNOWN", "warn"))
+                if r["subscriptions"] is not None:
+                    lines.append((f"\u2714 {r['subscriptions']} subscription(s) visible", "ok" if r["subscriptions"] else "warn"))
+                elif r["arm_ok"]:
+                    lines.append(("\u2716 Could not list subscriptions: " + r["errors"].get("subscriptions", ""), "bad"))
+            ok = r["arm_ok"] and not r["errors"].get("credential")
+            self.master.after(0, lambda: (self._write_test_result(lines),
+                                          self._set_busy(False, "Connection OK." if ok else "Connection test failed.")))
         threading.Thread(target=worker, daemon=True).start()
 
     def run_audit_clicked(self):

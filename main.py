@@ -15,16 +15,12 @@ logging.getLogger("azure.identity").setLevel(logging.CRITICAL)
 
 
 def _ensure_az_on_path():
-    """On Windows a terminal opened before installing the Azure CLI has a stale PATH.
-    If 'az' is not found, look in the standard install folders and add it for this process."""
-    if shutil.which("az") or os.name != "nt":
-        return
-    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
-        if base:
-            wbin = os.path.join(base, "Microsoft SDKs", "Azure", "CLI2", "wbin")
-            if os.path.isfile(os.path.join(wbin, "az.cmd")):
-                os.environ["PATH"] = wbin + os.pathsep + os.environ.get("PATH", "")
-                return
+    """A terminal opened before the Azure CLI was installed has a stale PATH; fix it for this run."""
+    try:
+        from src.utils.azcli import ensure_az_on_process_path
+        ensure_az_on_process_path()
+    except Exception:
+        pass
 
 
 _ensure_az_on_path()

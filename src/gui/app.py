@@ -9,6 +9,7 @@ from tkinter import ttk, messagebox, filedialog
 
 from ..runner import list_subscriptions, run_audit
 from ..report.pdf_report import build_pdf
+from ..utils import azcli
 
 COLORS = {
     "PASS": "#1E8E3E", "FAIL": "#D93025", "UNKNOWN": "#E37400", "NAVY": "#1F3A5F",
@@ -87,7 +88,15 @@ class App(ttk.Frame):
         modes.pack(fill="x", pady=(8, 4))
         ttk.Radiobutton(modes, text="Azure CLI / Managed Identity  (no secret needed)", variable=self.auth_mode,
                         value="default", command=self._on_mode_change).pack(anchor="w")
-        ttk.Label(modes, text="Run 'az login --tenant <tenant-id>' in a terminal first, then continue.", style="Hint.TLabel").pack(anchor="w", padx=24, pady=(0, 6))
+        ttk.Label(modes, text="Run 'az login --tenant <tenant-id>' in a terminal first, then continue.", style="Hint.TLabel").pack(anchor="w", padx=24, pady=(0, 2))
+        az_row = ttk.Frame(modes)
+        az_row.pack(anchor="w", padx=24, pady=(0, 6))
+        self.az_status = tk.StringVar()
+        self.az_status_lbl = ttk.Label(az_row, textvariable=self.az_status)
+        self.az_status_lbl.pack(side="left")
+        self.az_btn = ttk.Button(az_row, text="Install / fix Azure CLI", command=self.setup_azure_cli)
+        self.az_btn.pack(side="left", padx=10)
+        self._refresh_az_status()
         ttk.Radiobutton(modes, text="Service principal  (Tenant ID / Client ID / Client Secret)", variable=self.auth_mode,
                         value="service_principal", command=self._on_mode_change).pack(anchor="w")
 
@@ -238,6 +247,76 @@ class App(ttk.Frame):
         ttk.Button(btns, text="Open PDF", command=self.open_pdf).pack(side="left", padx=6)
 
     # ------------------------------------------------------------ helpers
+    def _refresh_az_status(self):
+        d = azcli.find_az_dir()
+        if d and azcli.is_on_path():
+            self.az_status.set("\u2714 Azure CLI found")
+            self.az_status_lbl.configure(foreground=COLORS["PASS"])
+            self.az_btn.configure(text="Add to my PATH permanently" if os.name == "nt" else "Azure CLI OK",
+                                  state="normal" if os.name == "nt" else "disabled")
+        elif d:
+            self.az_status.set("? Azure CLI is installed but not on PATH")
+            self.az_status_lbl.configure(foreground=COLORS["UNKNOWN"])
+            self.az_btn.configure(text="Add to PATH", state="normal")
+        else:
+            self.az_status.set("\u2716 Azure CLI not found")
+            self.az_status_lbl.configure(foreground=COLORS["FAIL"])
+            self.az_btn.configure(text="Install Azure CLI & add to PATH" if os.name == "nt" else "How to install",
+                                  state="normal")
+
+    def setup_azure_cli(self):
+        """Install the Azure CLI (winget) if missing and add it to this app's PATH and the user's PATH."""
+        if self._busy:
+            return
+        if os.name != "nt":
+            messagebox.showinfo("Install Azure CLI",
+                                f"Install the Azure CLI for your system, then run 'az login':\n{azcli.INSTALL_URL}")
+            return
+        d = azcli.find_az_dir()
+        if d is None:
+            if not messagebox.askyesno(
+                    "Install Azure CLI",
+                    "The Azure CLI is not installed.\n\nInstall it now with winget (about 70 MB) and add it to your PATH?\n"
+                    "Only your own user PATH is changed; no administrator rights are needed."):
+                return
+        else:
+            if not messagebox.askyesno(
+                    "Add Azure CLI to PATH",
+                    f"Azure CLI was found at:\n{d}\n\nAdd this folder to your user PATH so 'az' works in new terminals?"):
+                return
+
+        self._set_busy(True, "Installing Azure CLI... this can take a few minutes." if d is None else "Updating PATH...")
+
+        def worker():
+            err = None
+            folder = d
+            try:
+                if folder is None:
+                    ok, log = azcli.install_with_winget()
+                    folder = azcli.find_az_dir()
+                    if not ok or folder is None:
+                        err = "Could not install the Azure CLI automatically.\n\n" + "\n".join(log.splitlines()[-6:]) + \
+                              f"\n\nInstall it manually from {azcli.INSTALL_URL}"
+                if err is None:
+                    azcli.add_to_process_path(folder)
+                    added = azcli.add_to_user_path(folder)
+            except Exception as e:  # registry access etc.
+                err = f"Could not update PATH: {e}"
+
+            def ui():
+                self._set_busy(False, "Azure CLI ready." if err is None else "Azure CLI setup failed.")
+                self._refresh_az_status()
+                if err:
+                    messagebox.showerror("Azure CLI setup", err)
+                else:
+                    messagebox.showinfo(
+                        "Azure CLI ready",
+                        "The Azure CLI is installed and on your PATH.\n\n"
+                        "Next: open a NEW terminal and run\n    az login --tenant <your-tenant-id>\n"
+                        "then click 'Test connection' here.\n(Terminals that were already open will not see the change.)")
+            self.master.after(0, ui)
+        threading.Thread(target=worker, daemon=True).start()
+
     def _go_scope(self):
         self._sync_typed_subscriptions()
         self.nb.select(self.tab_scope)
@@ -262,6 +341,7 @@ class App(ttk.Frame):
         self.run_btn.configure(state=st)
         self.load_btn.configure(state=st)
         self.test_btn.configure(state=st)
+        self.az_btn.configure(state=st)
 
     def _validate(self) -> bool:
         if self.auth_mode.get() == "service_principal":

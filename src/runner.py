@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from azure.mgmt.resource import SubscriptionClient
 
 from .azure.clients import build_credential
-from .entra.graph import GraphClient
+from .entra.graph import GraphClient, CredentialGraphClient
 from .checks.entra_checks import ConditionalAccessEnabledCheck, BlockLegacyAuthPolicyCheck
 from .checks.azure_checks import (
     SubscriptionDiagnosticSettingsCheck, LogAnalyticsRetentionCheck,
@@ -62,9 +62,12 @@ def run_audit(
     findings = []
 
     graph = None
-    if run_entra_checks and auth_mode == "service_principal":
-        # MSAL client uses client secret mode; for 'default' auth, Graph auth is not handled here.
-        graph = GraphClient(tenant_id, client_id, client_secret)
+    if run_entra_checks:
+        if auth_mode == "service_principal":
+            graph = GraphClient(tenant_id, client_id, client_secret)
+        else:
+            # Reuse the DefaultAzureCredential (Azure CLI / managed identity) for Graph calls.
+            graph = CredentialGraphClient(credential)
 
     # Tenant checks
     if run_entra_checks:

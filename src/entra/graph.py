@@ -6,6 +6,19 @@ import msal
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
+GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+
+class CredentialGraphClient:
+    """Graph client that reuses an azure-identity credential (Azure CLI, managed identity, etc.)."""
+    def __init__(self, credential):
+        self.credential = credential
+
+    def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        token = self.credential.get_token(GRAPH_SCOPE).token
+        r = requests.get(f"{GRAPH_BASE}{path}", headers={"Authorization": f"Bearer {token}"}, params=params, timeout=60)
+        r.raise_for_status()
+        return r.json()
+
 class GraphClient:
     def __init__(self, tenant_id: str, client_id: str, client_secret: str):
         self.tenant_id = tenant_id
